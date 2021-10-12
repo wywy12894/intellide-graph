@@ -26,8 +26,7 @@ import java.io.IOException;
 import java.util.*;
 
 public class Doc2ReqExtractor extends KnowledgeExtractor {
-    public static RelationshipType TARGET = RelationshipType.withName("target");
-    public static RelationshipType SOURCE = RelationshipType.withName("source");
+    public static RelationshipType TRACE = RelationshipType.withName("trace");
 
     // TODO
     private static final double threshold = 0.5;

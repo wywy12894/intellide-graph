@@ -104,7 +104,7 @@ public class CommandExtractor extends KnowledgeExtractor {
                 
                 if(styleID != null && (styleID.equals("1") || styleID.equals("2"))) {
                     titles1.get(0).example = tmpVal;
-                    System.out.println(titles1.get(0).name);
+                    //System.out.println(titles1.get(0).name);
                     titles1.get(0).toNeo4j(this.getInserter());
                     titles1.set(0, new CommandExtractor.Command());
                     tmpVal = "";
