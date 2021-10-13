@@ -16,6 +16,7 @@ import com.alibaba.fastjson.JSONObject;
 import org.json.JSONArray;
 import org.json.JSONException;
 
+import javax.print.Doc;
 import java.io.FileInputStream;
 import java.io.File;
 import java.io.IOException;
@@ -36,7 +37,6 @@ public class DocxExtractor extends KnowledgeExtractor {
     /* Auxiliary Data Structures */
     private int docType;
     private int currentLevel;
-    private boolean flag;               // doc title flag
     private int[] levels = new int[4];  // title serial number
     private int[] nums = new int[5];    // entity content key-id
     private String tmpKey, tmpVal;      // level-4 title tmp var
@@ -44,7 +44,6 @@ public class DocxExtractor extends KnowledgeExtractor {
     ArrayList<RequirementSection> titles0 = new ArrayList<RequirementSection>(5);
     ArrayList<FeatureSection> titles1 = new ArrayList<FeatureSection>(5);
     ArrayList<ArchitectureSection> titles2 = new ArrayList<ArchitectureSection>(5);
-
 
     @Override
     public boolean isBatchInsert() {
@@ -70,6 +69,9 @@ public class DocxExtractor extends KnowledgeExtractor {
             if (fileName.contains("需求分析")) {
                 docType = 0;
                 try {
+                    titles0.get(0).title = fileName.substring(0, fileName.lastIndexOf("."));
+                    titles0.get(0).level = 0;
+                    titles0.get(0).serial = 0;
                     parseRequirement(xd, map0);
                 }
                 catch(JSONException e) {
@@ -79,6 +81,9 @@ public class DocxExtractor extends KnowledgeExtractor {
             else if (fileName.contains("特性设计")) {
                 docType = 1;
                 try {
+                    titles1.get(0).title = fileName.substring(0, fileName.lastIndexOf("."));
+                    titles1.get(0).level = 0;
+                    titles1.get(0).serial = 0;
                     parseFeature(xd, map1);
                 }
                 catch(JSONException e) {
@@ -88,6 +93,9 @@ public class DocxExtractor extends KnowledgeExtractor {
             else if(fileName.contains("架构")) {
                 docType = 2;
                 try {
+                    titles2.get(0).title = fileName.substring(0, fileName.lastIndexOf("."));
+                    titles2.get(0).level = 0;
+                    titles2.get(0).serial = 0;
                     parseArchitecture(xd, map2);
                 } catch (JSONException e) {
                     e.printStackTrace();
@@ -107,10 +115,10 @@ public class DocxExtractor extends KnowledgeExtractor {
 
     public void init() {
         currentLevel = 0;
-        flag = false;
         tmpKey = ""; tmpVal = "";
         titles0.clear();
         titles1.clear();
+        titles2.clear();
         for(int i = 1;i <= 3;i++) levels[i] = 0;
         for(int i = 0;i <= 3;i++) {
             nums[i] = 0;
@@ -202,43 +210,28 @@ public class DocxExtractor extends KnowledgeExtractor {
 
     public <T>void handleParagraph(Iterator<IBodyElement> bodyElementsIterator, XWPFParagraph para, Map<String, T> map) throws JSONException {
         if (!validText(para.getText())) return;
-        // title of document
-        if (!flag) {
-            if(docType == 0) {
-                titles0.get(0).title = para.getText();
-                titles0.get(0).level = 0;
-                titles0.get(0).serial = 0;
-            }
-            else if(docType == 1) {
-                titles1.get(0).title = para.getText();
-                titles1.get(0).level = 0;
-                titles1.get(0).serial = 0;
-            }
-            else if(docType == 2) {
-                titles2.get(0).title = para.getText();
-                titles2.get(0).level = 0;
-                titles2.get(0).serial = 0;
-            }
-            flag = true;
-            return;
-        }
-        int titleLevel;
-        if (para.getStyleID() == null || para.getStyleID().length() != 1)
-            titleLevel = -1;
+
+        String titleLevel;
+        if (para.getStyleID() == null)
+            titleLevel = "-1";
         else
-            titleLevel = Integer.parseInt(para.getStyleID());
+            titleLevel = para.getStyleID();
         switch (titleLevel) {
-            case 1: {
+            case "Heading1NoNumber" :
+            case "Heading1" :
+            case "1" : {
                 infoFill(1, para, map);
                 currentLevel = 1;
                 break;
             }
-            case 2: {
+            case "Heading2" :
+            case "2" : {
                 infoFill(2, para, map);
                 currentLevel = 2;
                 break;
             }
-            case 3: {
+            case "Heading3" :
+            case "3" : {
                 infoFill(3, para, map);
                 currentLevel = 3;
                 break;
@@ -262,7 +255,7 @@ public class DocxExtractor extends KnowledgeExtractor {
                     else if(docType == 2) titles2.get(2).content.put(String.valueOf(++nums[2]), para.getText());
                 }
                 else if (currentLevel == 3) {
-                    if (titleLevel == 4) {
+                    if (titleLevel.equals("Heading4") || titleLevel.equals("4")) {
                         // level-4 title content
                         handleTitle(bodyElementsIterator, para, map);
                     }
