@@ -2,6 +2,7 @@ package cn.edu.pku.sei.intellide.graph.extraction.docx;
 
 import cn.edu.pku.sei.intellide.graph.extraction.KnowledgeExtractor;
 import org.apache.commons.io.FileUtils;
+import org.apache.poi.ss.formula.functions.T;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFTable;
@@ -41,9 +42,7 @@ public class DocxExtractor extends KnowledgeExtractor {
     private int[] nums = new int[5];    // entity content key-id
     private String tmpKey, tmpVal;      // level-4 title tmp var
 
-    ArrayList<RequirementSection> titles0 = new ArrayList<RequirementSection>(5);
-    ArrayList<FeatureSection> titles1 = new ArrayList<FeatureSection>(5);
-    ArrayList<ArchitectureSection> titles2 = new ArrayList<ArchitectureSection>(5);
+    ArrayList<DocxSection> titleEntity = new ArrayList<DocxSection>(5);
 
     @Override
     public boolean isBatchInsert() {
@@ -55,6 +54,7 @@ public class DocxExtractor extends KnowledgeExtractor {
         for (File file : FileUtils.listFiles(new File(this.getDataDir()), new String[] { "docx" }, true)) {
             String fileName = file.getAbsolutePath().substring(new File(this.getDataDir()).getAbsolutePath().length())
                     .replaceAll("^[/\\\\]+", "");
+            
             XWPFDocument xd = null;
             try {
                 xd = new XWPFDocument(new FileInputStream(file));
@@ -62,110 +62,50 @@ public class DocxExtractor extends KnowledgeExtractor {
             catch(IOException e) {
                 e.printStackTrace();
             }
-            Map<String, RequirementSection> map0 = new HashMap<>();
-            Map<String, FeatureSection> map1 = new HashMap<>();
-            Map<String, ArchitectureSection> map2 = new HashMap<>();
-            init();
-            if (fileName.contains("需求分析")) {
-                docType = 0;
-                try {
-                    titles0.get(0).title = fileName.substring(0, fileName.lastIndexOf("."));
-                    titles0.get(0).level = 0;
-                    titles0.get(0).serial = 0;
-                    parseRequirement(xd, map0);
-                }
-                catch(JSONException e) {
-                    e.printStackTrace();
-                }
+            Map<String, DocxSection> map = new HashMap<>();
+            initVar();      // initialize dataStructure defined above
+            if(fileName.contains("需求分析")) docType = 0;
+            else if(fileName.contains("特性设计")) docType = 1;
+            else if(fileName.contains("架构")) docType = 2;
+            else continue;
+            try {
+                titleEntity.get(0).title = fileName.substring(0, fileName.lastIndexOf("."));
+                titleEntity.get(0).level = 0;
+                titleEntity.get(0).serial = 0;
+                parseDocx(xd, map);
             }
-            else if (fileName.contains("特性设计")) {
-                docType = 1;
-                try {
-                    titles1.get(0).title = fileName.substring(0, fileName.lastIndexOf("."));
-                    titles1.get(0).level = 0;
-                    titles1.get(0).serial = 0;
-                    parseFeature(xd, map1);
-                }
-                catch(JSONException e) {
-                    e.printStackTrace();
-                }
+            catch(JSONException e) {
+                e.printStackTrace();
             }
-            else if(fileName.contains("架构")) {
-                docType = 2;
-                try {
-                    titles2.get(0).title = fileName.substring(0, fileName.lastIndexOf("."));
-                    titles2.get(0).level = 0;
-                    titles2.get(0).serial = 0;
-                    parseArchitecture(xd, map2);
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-            }
-            for (RequirementSection requirementSection : map0.values()) {
-                if(requirementSection.level != -1) requirementSection.toNeo4j(this.getInserter());
-            }
-            for (FeatureSection featureSection : map1.values()) {
-                if(featureSection.level != -1) featureSection.toNeo4j(this.getInserter());
-            }
-            for (ArchitectureSection architectureSection : map2.values()) {
-                if(architectureSection.level != -1) architectureSection.toNeo4j(this.getInserter());
+            for (DocxSection docxSection : map.values()) {
+                if(docxSection.level != -1) docxSection.toNeo4j(this.getInserter());
             }
         }
     }
 
-    public void init() {
+    public void initVar() {
         currentLevel = 0;
         tmpKey = ""; tmpVal = "";
-        titles0.clear();
-        titles1.clear();
-        titles2.clear();
+        titleEntity.clear();
         for(int i = 1;i <= 3;i++) levels[i] = 0;
         for(int i = 0;i <= 3;i++) {
             nums[i] = 0;
-            titles0.add(i, new RequirementSection());
-            titles1.add(i, new FeatureSection());
-            titles2.add(i, new ArchitectureSection());
+            titleEntity.add(i, new DocxSection());
         }
     }
 
-    public <T>void infoFill(int styleID, XWPFParagraph para, Map<String, T> map) {
+    public void infoFill(int styleID, XWPFParagraph para, Map<String, DocxSection> map) {
         levels[styleID]++; nums[styleID] = 0;
-        if(docType == 0) {
-            for(int i = 1;i <= 3;i++) {
-                if(titles0.get(i) != null && !map.containsKey(titles0.get(i).title)) {
-                    map.put(titles0.get(i).title, (T) titles0.get(i));
-                    titles0.get(i-1).children.add(titles0.get(i));
-                }
+        for(int i = 1;i <= 3;i++) {
+            if(titleEntity.get(i) != null && !map.containsKey(titleEntity.get(i).title)) {
+                map.put(titleEntity.get(i).title, titleEntity.get(i));
+                titleEntity.get(i-1).children.add(titleEntity.get(i));
             }
-            titles0.set(styleID, new RequirementSection());
-            titles0.get(styleID).title = para.getText();
-            titles0.get(styleID).level = styleID;
-            titles0.get(styleID).serial = levels[styleID];
         }
-        else if(docType == 1) {
-            for(int i = 1;i <= 3;i++) {
-                if(titles1.get(i) != null && !map.containsKey(titles1.get(i).title)) {
-                    map.put(titles1.get(i).title, (T) titles1.get(i));
-                    titles1.get(i-1).children.add(titles1.get(i));
-                }
-            }
-            titles1.set(styleID, new FeatureSection());
-            titles1.get(styleID).title = para.getText();
-            titles1.get(styleID).level = styleID;
-            titles1.get(styleID).serial = levels[styleID];
-        }
-        else if(docType == 2) {
-            for(int i = 1;i <= 3;i++) {
-                if(titles2.get(i) != null && !map.containsKey(titles2.get(i).title)) {
-                    map.put(titles2.get(i).title, (T) titles2.get(i));
-                    titles2.get(i-1).children.add(titles2.get(i));
-                }
-            }
-            titles2.set(styleID, new ArchitectureSection());
-            titles2.get(styleID).title = para.getText();
-            titles2.get(styleID).level = styleID;
-            titles2.get(styleID).serial = levels[styleID];
-        }
+        titleEntity.set(styleID, new DocxSection());
+        titleEntity.get(styleID).title = para.getText();
+        titleEntity.get(styleID).level = styleID;
+        titleEntity.get(styleID).serial = levels[styleID];
         if(styleID < 3) levels[styleID+1] = 0;
     }
 
@@ -176,7 +116,7 @@ public class DocxExtractor extends KnowledgeExtractor {
         return !text.equals("\t") && !text.equals("\r\n");
     }
 
-    public <T>void handleTitle(Iterator<IBodyElement> bodyElementsIterator, XWPFParagraph para, Map<String, T> map) throws JSONException {
+    public void handleMinTitle(Iterator<IBodyElement> bodyElementsIterator, XWPFParagraph para, Map<String, DocxSection> map) throws JSONException {
         tmpKey = para.getText();
         if(!validText(tmpKey)) return;
         tmpVal = "";
@@ -186,9 +126,7 @@ public class DocxExtractor extends KnowledgeExtractor {
             if(tmpElement instanceof XWPFParagraph) {
                 String styleID = ((XWPFParagraph)(tmpElement)).getStyleID();
                 if(styleID != null && (styleID.equals("1") || styleID.equals("2") || styleID.equals("3") || styleID.equals("4"))) {
-                    if(docType == 0) titles0.get(3).content.put(tmpKey, tmpVal);
-                    else if(docType == 1) titles1.get(3).content.put(tmpKey, tmpVal);
-                    else if(docType == 2) titles2.get(3).content.put(tmpKey, tmpVal);
+                    titleEntity.get(3).content.put(tmpKey, tmpVal);
                     tmpKey = "";
                     handleParagraph(bodyElementsIterator, ((XWPFParagraph)(tmpElement)), map);
                     break;
@@ -198,9 +136,7 @@ public class DocxExtractor extends KnowledgeExtractor {
                 }
             }
             else if(tmpElement instanceof XWPFTable) {
-                if(docType == 0) titles0.get(3).content.put(tmpKey, tmpVal);
-                else if(docType == 1) titles1.get(3).content.put(tmpKey, tmpVal);
-                else if(docType == 2) titles2.get(3).content.put(tmpKey, tmpVal);
+                titleEntity.get(3).content.put(tmpKey, tmpVal);
                 tmpKey = "";
                 handleTable(((XWPFTable)tmpElement));
                 break;
@@ -208,7 +144,7 @@ public class DocxExtractor extends KnowledgeExtractor {
         }
     }
 
-    public <T>void handleParagraph(Iterator<IBodyElement> bodyElementsIterator, XWPFParagraph para, Map<String, T> map) throws JSONException {
+    public void handleParagraph(Iterator<IBodyElement> bodyElementsIterator, XWPFParagraph para, Map<String, DocxSection> map) throws JSONException {
         if (!validText(para.getText())) return;
 
         String titleLevel;
@@ -240,30 +176,22 @@ public class DocxExtractor extends KnowledgeExtractor {
                 // non-title: content attribute
                 if (currentLevel == 0) {
                     // content between titles0.get(0) and titles0.get(1)
-                    if(docType == 0) titles0.get(0).content.put(String.valueOf(++nums[0]), para.getText());
-                    else if(docType == 1) titles1.get(0).content.put(String.valueOf(++nums[0]), para.getText());
-                    else if(docType == 2) titles2.get(0).content.put(String.valueOf(++nums[0]), para.getText());
+                    titleEntity.get(0).content.put(String.valueOf(++nums[0]), para.getText());
                 }
                 else if (currentLevel == 1) {
-                    if(docType == 0) titles0.get(1).content.put(String.valueOf(++nums[1]), para.getText());
-                    else if(docType == 1) titles1.get(1).content.put(String.valueOf(++nums[1]), para.getText());
-                    else if(docType == 2) titles2.get(1).content.put(String.valueOf(++nums[1]), para.getText());
+                    titleEntity.get(1).content.put(String.valueOf(++nums[1]), para.getText());
                 }
                 else if (currentLevel == 2) {
-                    if(docType == 0) titles0.get(2).content.put(String.valueOf(++nums[2]), para.getText());
-                    else if(docType == 1) titles1.get(2).content.put(String.valueOf(++nums[2]), para.getText());
-                    else if(docType == 2) titles2.get(2).content.put(String.valueOf(++nums[2]), para.getText());
+                    titleEntity.get(2).content.put(String.valueOf(++nums[2]), para.getText());
                 }
                 else if (currentLevel == 3) {
                     if (titleLevel.equals("Heading4") || titleLevel.equals("4")) {
                         // level-4 title content
-                        handleTitle(bodyElementsIterator, para, map);
+                        handleMinTitle(bodyElementsIterator, para, map);
                     }
                     else {
                         // normal text content
-                        if(docType == 0) titles0.get(3).content.put(String.valueOf(++nums[3]), para.getText());
-                        else if(docType == 1) titles1.get(3).content.put(String.valueOf(++nums[3]), para.getText());
-                        else if(docType == 2) titles2.get(3).content.put(String.valueOf(++nums[3]), para.getText());
+                        titleEntity.get(3).content.put(String.valueOf(++nums[3]), para.getText());
                     }
                 }
             }
@@ -276,28 +204,13 @@ public class DocxExtractor extends KnowledgeExtractor {
         for(String line : lines) {
             ja.put(line);
         }
-        if(docType == 0) {
-            if(currentLevel == 0) titles0.get(0).table.add(ja);
-            else if(currentLevel == 1) titles0.get(1).table.add(ja);
-            else if(currentLevel == 2) titles0.get(2).table.add(ja);
-            else if(currentLevel == 3) titles0.get(3).table.add(ja);
-        }
-        else if(docType == 1) {
-            if(currentLevel == 0) titles1.get(0).table.add(ja);
-            else if(currentLevel == 1) titles1.get(1).table.add(ja);
-            else if(currentLevel == 2) titles1.get(2).table.add(ja);
-            else if(currentLevel == 3) titles1.get(3).table.add(ja);
-        }
-        else if(docType == 2) {
-            if(currentLevel == 0) titles2.get(0).table.add(ja);
-            else if(currentLevel == 1) titles2.get(1).table.add(ja);
-            else if(currentLevel == 2) titles2.get(2).table.add(ja);
-            else if(currentLevel == 3) titles2.get(3).table.add(ja);
-        }
+        if(currentLevel == 0) titleEntity.get(0).table.add(ja);
+        else if(currentLevel == 1) titleEntity.get(1).table.add(ja);
+        else if(currentLevel == 2) titleEntity.get(2).table.add(ja);
+        else if(currentLevel == 3) titleEntity.get(3).table.add(ja);
     }
 
-    public void parseRequirement(XWPFDocument xd, Map<String, RequirementSection> map) throws JSONException {
-
+    public void parseDocx(XWPFDocument xd, Map<String, DocxSection> map) throws JSONException {
         Iterator<IBodyElement> bodyElementsIterator = xd.getBodyElementsIterator();
         while (bodyElementsIterator.hasNext()) {
             IBodyElement bodyElement = bodyElementsIterator.next();
@@ -309,62 +222,22 @@ public class DocxExtractor extends KnowledgeExtractor {
             }
         }
         for(int i = 0;i <= 3;i++) {
-            if(titles0.get(i) != null && !map.containsKey(titles0.get(i).title)) {
-                map.put(titles0.get(i).title, titles0.get(i));
-                if(i > 0) titles0.get(i-1).children.add(titles0.get(i));
+            if(titleEntity.get(i) != null && !map.containsKey(titleEntity.get(i).title)) {
+                map.put(titleEntity.get(i).title, titleEntity.get(i));
+                if(i > 0) titleEntity.get(i-1).children.add(titleEntity.get(i));
             }
         }
-        if(!tmpKey.equals("")) titles0.get(3).content.put(tmpKey, tmpVal);
+        if(!tmpKey.equals("")) titleEntity.get(3).content.put(tmpKey, tmpVal);
     }
 
-    public void parseFeature(XWPFDocument xd, Map<String, FeatureSection> map) throws JSONException {
-        Iterator<IBodyElement> bodyElementsIterator = xd.getBodyElementsIterator();
-        while (bodyElementsIterator.hasNext()) {
-            IBodyElement bodyElement = bodyElementsIterator.next();
-            if(bodyElement instanceof XWPFTable) {
-                handleTable(((XWPFTable) (bodyElement)));
-            }
-            else if(bodyElement instanceof XWPFParagraph) {
-                handleParagraph(bodyElementsIterator, ((XWPFParagraph) (bodyElement)), map);
-            }
-        }
-        for(int i = 0;i <= 3;i++) {
-            if(titles1.get(i) != null && !map.containsKey(titles1.get(i).title)) {
-                map.put(titles1.get(i).title, titles1.get(i));
-                if(i > 0) titles1.get(i-1).children.add(titles1.get(i));
-            }
-        }
-        if(!tmpKey.equals("")) titles1.get(3).content.put(tmpKey, tmpVal);
-    }
-
-    public void parseArchitecture(XWPFDocument xd, Map<String, ArchitectureSection> map) throws JSONException {
-        Iterator<IBodyElement> bodyElementsIterator = xd.getBodyElementsIterator();
-        while (bodyElementsIterator.hasNext()) {
-            IBodyElement bodyElement = bodyElementsIterator.next();
-            if(bodyElement instanceof XWPFTable) {
-                handleTable(((XWPFTable) (bodyElement)));
-            }
-            else if(bodyElement instanceof XWPFParagraph) {
-                handleParagraph(bodyElementsIterator, ((XWPFParagraph) (bodyElement)), map);
-            }
-        }
-        for(int i = 0;i <= 3;i++) {
-            if(titles2.get(i) != null && !map.containsKey(titles2.get(i).title)) {
-                map.put(titles2.get(i).title, titles2.get(i));
-                if(i > 0) titles2.get(i-1).children.add(titles2.get(i));
-            }
-        }
-        if(!tmpKey.equals("")) titles2.get(3).content.put(tmpKey, tmpVal);
-    }
-
-    class RequirementSection {
+    class DocxSection {
         long node = -1;
         String title = "";
         int level = -1;
         int serial = 0;
         JSONObject content = new JSONObject(new LinkedHashMap<>());
         ArrayList<JSONArray> table = new ArrayList<>();
-        ArrayList<RequirementSection> children = new ArrayList<>();
+        ArrayList<DocxSection> children = new ArrayList<>();
 
         public long toNeo4j(BatchInserter inserter) {
             if(node != -1) return node;
@@ -374,69 +247,11 @@ public class DocxExtractor extends KnowledgeExtractor {
             map.put(DocxExtractor.SERIAL, serial);
             map.put(DocxExtractor.CONTENT, content.toString());
             map.put(DocxExtractor.TABLE, table.toString());
-            node = inserter.createNode(map, new Label[] { DocxExtractor.RequirementSection });
+            if(docType == 0) node = inserter.createNode(map, new Label[] { DocxExtractor.RequirementSection });
+            else if(docType == 1) node = inserter.createNode(map, new Label[] { DocxExtractor.FeatureSection });
+            else if(docType == 2) node = inserter.createNode(map, new Label[] { DocxExtractor.ArchitectureSection });
             for (int i = 0; i < children.size(); i++) {
-                RequirementSection child = children.get(i);
-                if(child.level == -1) continue;
-                long childId = child.toNeo4j(inserter);
-                Map<String, Object> rMap = new HashMap<>();
-                rMap.put(DocxExtractor.SERIAL, i);
-                inserter.createRelationship(node, childId, DocxExtractor.SUB_DOCX_ELEMENT, rMap);
-            }
-            return node;
-        }
-    }
-
-    class FeatureSection {
-        long node = -1;
-        String title = "";
-        int level = -1;
-        int serial = 0;
-        JSONObject content = new JSONObject(new LinkedHashMap<>());
-        ArrayList<JSONArray> table = new ArrayList<>();
-        ArrayList<FeatureSection> children = new ArrayList<>();
-
-        public long toNeo4j(BatchInserter inserter) {
-            if(node != -1) return node;
-            Map<String, Object> map = new HashMap<>();
-            map.put(DocxExtractor.TITLE, title);
-            map.put(DocxExtractor.LEVEL, level);
-            map.put(DocxExtractor.SERIAL, serial);
-            map.put(DocxExtractor.CONTENT, content.toString());
-            map.put(DocxExtractor.TABLE, table.toString());
-            node = inserter.createNode(map, new Label[] { DocxExtractor.FeatureSection });
-            for (int i = 0; i < children.size(); i++) {
-                FeatureSection child = children.get(i);
-                if(child.level == -1) continue;
-                long childId = child.toNeo4j(inserter);
-                Map<String, Object> rMap = new HashMap<>();
-                rMap.put(DocxExtractor.SERIAL, i);
-                inserter.createRelationship(node, childId, DocxExtractor.SUB_DOCX_ELEMENT, rMap);
-            }
-            return node;
-        }
-    }
-
-    class ArchitectureSection {
-        long node = -1;
-        String title = "";
-        int level = -1;
-        int serial = 0;
-        JSONObject content = new JSONObject(new LinkedHashMap<>());
-        ArrayList<JSONArray> table = new ArrayList<>();
-        ArrayList<ArchitectureSection> children = new ArrayList<>();
-
-        public long toNeo4j(BatchInserter inserter) {
-            if(node != -1) return node;
-            Map<String, Object> map = new HashMap<>();
-            map.put(DocxExtractor.TITLE, title);
-            map.put(DocxExtractor.LEVEL, level);
-            map.put(DocxExtractor.SERIAL, serial);
-            map.put(DocxExtractor.CONTENT, content.toString());
-            map.put(DocxExtractor.TABLE, table.toString());
-            node = inserter.createNode(map, new Label[] { DocxExtractor.ArchitectureSection });
-            for (int i = 0; i < children.size(); i++) {
-                ArchitectureSection child = children.get(i);
+                DocxSection child = children.get(i);
                 if(child.level == -1) continue;
                 long childId = child.toNeo4j(inserter);
                 Map<String, Object> rMap = new HashMap<>();
