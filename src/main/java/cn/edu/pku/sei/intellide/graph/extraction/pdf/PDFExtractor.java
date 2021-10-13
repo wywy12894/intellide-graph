@@ -88,7 +88,7 @@ public class PDFExtractor extends KnowledgeExtractor {
         // 创建对象
         GuideSection guideSection = new GuideSection();
         guideSection.title = item.getTitle();
-        guideSection.content = content;
+        guideSection.content = content.replaceAll("\n", "");
         guideSection.level = depth;
 
 
@@ -96,7 +96,7 @@ public class PDFExtractor extends KnowledgeExtractor {
         int serial = 1;
         while (child != null) {
             GuideSection childSection = getOutline(child, pdf, depth+1);
-            childSection.serial = serial++;
+            //childSection.serial = serial++;
             guideSection.children.add(childSection);
             child = child.getNextSibling();
         }
@@ -125,7 +125,7 @@ public class PDFExtractor extends KnowledgeExtractor {
     class GuideSection {
         String title = "";
         int level = -1;
-        int serial = 0;
+        int serial = 1;
         String content = "";
         List<GuideSection> children = new ArrayList<>();
 
@@ -138,6 +138,7 @@ public class PDFExtractor extends KnowledgeExtractor {
             long node = inserter.createNode(map, new Label[] { PDFExtractor.GuideSection });
             for (int i = 0; i < children.size(); i++) {
                 GuideSection child = children.get(i);
+                child.serial = i;
                 long childId = child.toNeo4j(inserter);
                 Map<String, Object> rMap = new HashMap<>();
                 rMap.put(PDFExtractor.SERIAL, i);

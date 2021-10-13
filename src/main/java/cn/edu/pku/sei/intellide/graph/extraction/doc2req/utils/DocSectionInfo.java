@@ -199,11 +199,8 @@ public class DocSectionInfo {
             return;
         }
         try (Transaction tx = db.beginTx()) {
-//            for (Node endNode : sourceNodes) {
-//                this.node.createRelationshipTo(endNode, Doc2ReqExtractor.SOURCE);
-//            }
             for (Node endNode : targetNodes) {
-                this.node.createRelationshipTo(endNode, Doc2ReqExtractor.TARGET);
+                this.node.createRelationshipTo(endNode, Doc2ReqExtractor.TRACE);
             }
             tx.success();
         }
