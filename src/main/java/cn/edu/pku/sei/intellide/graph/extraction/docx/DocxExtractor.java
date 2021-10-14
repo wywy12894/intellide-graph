@@ -142,7 +142,14 @@ public class DocxExtractor extends KnowledgeExtractor {
                 minGranu = Math.max(minGranu, Integer.parseInt(styleID.substring(styleID.length()-1, styleID.length())));
             }
         }
-        for(Map.Entry<String, Integer> entry: map.entrySet()) {
+        // sorted by title-level in ascending order
+        List<Map.Entry<String,Integer>> list = new ArrayList<Map.Entry<String,Integer>>(map.entrySet());
+        Collections.sort(list, new Comparator<Map.Entry<String,Integer>>() {
+            public int compare(Map.Entry<String, Integer> o1, Map.Entry<String, Integer> o2) {
+                return o2.getKey().substring(o2.getKey().length()-1, o2.getKey().length()).compareTo(o1.getKey().substring(o1.getKey().length()-1, o1.getKey().length()));
+            }
+        });
+        for(Map.Entry<String, Integer> entry: list) {
             String key = entry.getKey();
             key = key.substring(key.indexOf("#") + 1, key.length());
             int level = Integer.parseInt(key);
