@@ -1,6 +1,7 @@
 package cn.edu.pku.sei.intellide.graph.extraction.docx;
 
 import cn.edu.pku.sei.intellide.graph.extraction.KnowledgeExtractor;
+import javafx.util.Pair;
 import org.apache.commons.io.FileUtils;
 import org.apache.poi.ss.formula.functions.T;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
@@ -38,15 +39,22 @@ public class DocxExtractor extends KnowledgeExtractor {
     /* Auxiliary Data Structures */
     private int docType;
     private int currentLevel;
-    private int[] levels = new int[4];  // title serial number
-    private int[] nums = new int[5];    // entity content key-id
-    private String tmpKey, tmpVal;      // level-4 title tmp var
+    private int minGranularity;
+    private int[] levels = new int[7];  // title serial number
+    private int[] nums = new int[7];    // entity content key-id
+    private String tmpKey, tmpVal;      // min-evel title tmp var
 
-    ArrayList<DocxSection> titleEntity = new ArrayList<DocxSection>(5);
+    ArrayList<DocxSection> titleEntity;
 
     @Override
     public boolean isBatchInsert() {
         return true;
+    }
+
+    public static void main(String[] args) {
+        DocxExtractor test = new DocxExtractor();
+        test.setDataDir("D:\\documents\\SoftwareReuse\\KnowledgeGraph\\HWProject\\doc+req");
+        test.extraction();
     }
 
     @Override
@@ -63,12 +71,15 @@ public class DocxExtractor extends KnowledgeExtractor {
                 e.printStackTrace();
             }
             Map<String, DocxSection> map = new HashMap<>();
-            initVar();      // initialize dataStructure defined above
+
             if(fileName.contains("需求分析")) docType = 0;
             else if(fileName.contains("特性设计")) docType = 1;
             else if(fileName.contains("架构")) docType = 2;
             else continue;
+
             try {
+                minGranularity = getMinGranularity(xd);
+                initVar();      // initialize dataStructure defined above
                 titleEntity.get(0).title = fileName.substring(0, fileName.lastIndexOf("."));
                 titleEntity.get(0).level = 0;
                 titleEntity.get(0).serial = 0;
@@ -86,9 +97,9 @@ public class DocxExtractor extends KnowledgeExtractor {
     public void initVar() {
         currentLevel = 0;
         tmpKey = ""; tmpVal = "";
-        titleEntity.clear();
-        for(int i = 1;i <= 3;i++) levels[i] = 0;
-        for(int i = 0;i <= 3;i++) {
+        titleEntity = new ArrayList<DocxSection>(minGranularity + 1);
+        for(int i = 1;i <= minGranularity;i++) levels[i] = 0;
+        for(int i = 0;i <= minGranularity;i++) {
             nums[i] = 0;
             titleEntity.add(i, new DocxSection());
         }
@@ -96,7 +107,7 @@ public class DocxExtractor extends KnowledgeExtractor {
 
     public void infoFill(int styleID, XWPFParagraph para, Map<String, DocxSection> map) {
         levels[styleID]++; nums[styleID] = 0;
-        for(int i = 1;i <= 3;i++) {
+        for(int i = 1;i <= minGranularity;i++) {
             if(titleEntity.get(i) != null && !map.containsKey(titleEntity.get(i).title)) {
                 map.put(titleEntity.get(i).title, titleEntity.get(i));
                 titleEntity.get(i-1).children.add(titleEntity.get(i));
@@ -106,7 +117,7 @@ public class DocxExtractor extends KnowledgeExtractor {
         titleEntity.get(styleID).title = para.getText();
         titleEntity.get(styleID).level = styleID;
         titleEntity.get(styleID).serial = levels[styleID];
-        if(styleID < 3) levels[styleID+1] = 0;
+        if(styleID < minGranularity) levels[styleID+1] = 0;
     }
 
     public boolean validText(String text) {
@@ -114,6 +125,33 @@ public class DocxExtractor extends KnowledgeExtractor {
         text = text.replaceAll(" ", "");
         if(text.length() == 0) return false;
         return !text.equals("\t") && !text.equals("\r\n");
+    }
+
+    public int getMinGranularity(XWPFDocument xd) {
+        int minGranu = 0;
+        List<XWPFParagraph> paragraphs = xd.getParagraphs();
+        Map<String, Integer> map = new HashMap<>();
+        for(XWPFParagraph para: paragraphs) {
+            String styleID = para.getStyleID();
+            String text = para.getText();
+            if(styleID == null || text == null) continue;
+            if(styleID.contains("Heading") || (styleID.compareTo("0") >= 0 && styleID.compareTo("6") <= 0)) {
+                String key = text + "#" + styleID;
+                if(!map.isEmpty() && map.containsKey(key)) map.put(key, map.get(key) + 1);
+                else map.put(key, 1);
+                minGranu = Math.max(minGranu, Integer.parseInt(styleID.substring(styleID.length()-1, styleID.length())));
+            }
+        }
+        for(Map.Entry<String, Integer> entry: map.entrySet()) {
+            String key = entry.getKey();
+            key = key.substring(key.indexOf("#") + 1, key.length());
+            int level = Integer.parseInt(key);
+            int value = entry.getValue();
+            if(level == minGranu && value > 1) {
+                minGranu--;
+            }
+        }
+        return Math.min(minGranu, 5);
     }
 
     public void handleMinTitle(Iterator<IBodyElement> bodyElementsIterator, XWPFParagraph para, Map<String, DocxSection> map) throws JSONException {
@@ -125,8 +163,8 @@ public class DocxExtractor extends KnowledgeExtractor {
             tmpElement = bodyElementsIterator.next();
             if(tmpElement instanceof XWPFParagraph) {
                 String styleID = ((XWPFParagraph)(tmpElement)).getStyleID();
-                if(styleID != null && (styleID.equals("1") || styleID.equals("2") || styleID.equals("3") || styleID.equals("4"))) {
-                    titleEntity.get(3).content.put(tmpKey, tmpVal);
+                if(styleID != null && styleID.compareTo("1") >= 0 && styleID.compareTo(minGranularity+"") <= 0) {
+                    titleEntity.get(minGranularity).content.put(tmpKey, tmpVal);
                     tmpKey = "";
                     handleParagraph(bodyElementsIterator, ((XWPFParagraph)(tmpElement)), map);
                     break;
@@ -136,7 +174,7 @@ public class DocxExtractor extends KnowledgeExtractor {
                 }
             }
             else if(tmpElement instanceof XWPFTable) {
-                titleEntity.get(3).content.put(tmpKey, tmpVal);
+                titleEntity.get(minGranularity).content.put(tmpKey, tmpVal);
                 tmpKey = "";
                 handleTable(((XWPFTable)tmpElement));
                 break;
@@ -172,26 +210,35 @@ public class DocxExtractor extends KnowledgeExtractor {
                 currentLevel = 3;
                 break;
             }
+            case "Heading4" :
+            case "4" : {
+                if(minGranularity >= 4) {
+                    infoFill(4, para, map);
+                    currentLevel = 4;
+                    break;
+                }
+            }
+            case "Heading5" :
+            case "5" : {
+                if(minGranularity >= 5) {
+                    infoFill(5, para, map);
+                    currentLevel = 5;
+                    break;
+                }
+            }
             default: {
                 // non-title: content attribute
-                if (currentLevel == 0) {
-                    // content between titles0.get(0) and titles0.get(1)
-                    titleEntity.get(0).content.put(String.valueOf(++nums[0]), para.getText());
+                if(currentLevel < minGranularity) {
+                    titleEntity.get(currentLevel).content.put(String.valueOf(++nums[currentLevel]), para.getText());
                 }
-                else if (currentLevel == 1) {
-                    titleEntity.get(1).content.put(String.valueOf(++nums[1]), para.getText());
-                }
-                else if (currentLevel == 2) {
-                    titleEntity.get(2).content.put(String.valueOf(++nums[2]), para.getText());
-                }
-                else if (currentLevel == 3) {
-                    if (titleLevel.equals("Heading4") || titleLevel.equals("4")) {
-                        // level-4 title content
+                else if (currentLevel == minGranularity) {
+                    if (titleLevel.equals("Heading" + (minGranularity + 1)) || titleLevel.equals((minGranularity+1) + "")) {
+                        // min-level title content
                         handleMinTitle(bodyElementsIterator, para, map);
                     }
                     else {
                         // normal text content
-                        titleEntity.get(3).content.put(String.valueOf(++nums[3]), para.getText());
+                        titleEntity.get(minGranularity).content.put(String.valueOf(++nums[minGranularity]), para.getText());
                     }
                 }
             }
@@ -204,10 +251,7 @@ public class DocxExtractor extends KnowledgeExtractor {
         for(String line : lines) {
             ja.put(line);
         }
-        if(currentLevel == 0) titleEntity.get(0).table.add(ja);
-        else if(currentLevel == 1) titleEntity.get(1).table.add(ja);
-        else if(currentLevel == 2) titleEntity.get(2).table.add(ja);
-        else if(currentLevel == 3) titleEntity.get(3).table.add(ja);
+        if(currentLevel >= 0 && currentLevel <= minGranularity) titleEntity.get(currentLevel).table.add(ja);
     }
 
     public void parseDocx(XWPFDocument xd, Map<String, DocxSection> map) throws JSONException {
@@ -221,13 +265,13 @@ public class DocxExtractor extends KnowledgeExtractor {
                 handleParagraph(bodyElementsIterator, ((XWPFParagraph) (bodyElement)), map);
             }
         }
-        for(int i = 0;i <= 3;i++) {
+        for(int i = 0;i <= minGranularity;i++) {
             if(titleEntity.get(i) != null && !map.containsKey(titleEntity.get(i).title)) {
                 map.put(titleEntity.get(i).title, titleEntity.get(i));
                 if(i > 0) titleEntity.get(i-1).children.add(titleEntity.get(i));
             }
         }
-        if(!tmpKey.equals("")) titleEntity.get(3).content.put(tmpKey, tmpVal);
+        if(!tmpKey.equals("")) titleEntity.get(minGranularity).content.put(tmpKey, tmpVal);
     }
 
     class DocxSection {
