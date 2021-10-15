@@ -51,6 +51,7 @@ public class PDFExtractor extends KnowledgeExtractor {
                         item = item.getNextSibling();
                     }
                 }
+                pdf.close();
                 root.toNeo4j(this.getInserter());
             } catch (IOException e) {
                 e.printStackTrace();
@@ -110,7 +111,11 @@ public class PDFExtractor extends KnowledgeExtractor {
         if (result != null)     return result;
         result = item.getNextSibling();
         if (result != null)     return result;
-        result = ((PDOutlineItem) item.getParent()).getNextSibling();
+        try {
+            result = ((PDOutlineItem) item.getParent()).getNextSibling();
+        } catch (Exception e) {
+            return null;
+        }
         return result;
     }
 

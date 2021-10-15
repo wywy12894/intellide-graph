@@ -9,6 +9,8 @@ import org.neo4j.graphdb.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class RequirementExtractor extends KnowledgeExtractor {
     public static final Label IR = Label.label("IR");
@@ -29,21 +31,16 @@ public class RequirementExtractor extends KnowledgeExtractor {
     public void extraction() {
         // 创建需求实体以及需求到人的关系
         for (File file : FileUtils.listFiles(new File(this.getDataDir()), new String[]{"json"}, true)) {
-            String jsonContent = null;
+            List<String> jsonContent = new ArrayList<>();
             try {
-                jsonContent = FileUtils.readFileToString(file, "utf-8");
-                //System.out.println(jsonContent);
+                jsonContent = FileUtils.readLines(file, "utf-8");
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            if (jsonContent == null){
-                continue;
-            }
             try {
-                JSONArray ReqArray = new JSONArray(jsonContent);
                 try(Transaction tx = this.getDb().beginTx()) {
-                    for (int i = 0; i < ReqArray.length(); i++) {
-                        JSONObject req = ReqArray.getJSONObject(i).getJSONObject("_source");
+                    for (String s : jsonContent) {
+                        JSONObject req = new JSONObject(s);
                         Node node = this.getDb().createNode();
                         // 建立需求实体
                         createReqNode(req, node);

@@ -9,6 +9,10 @@ import org.neo4j.graphdb.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -38,29 +42,24 @@ public class MRExtractor extends KnowledgeExtractor {
     @Override
     public void extraction() {
         for (File file : FileUtils.listFiles(new File(this.getDataDir()), new String[]{"json"}, true)) {
-            String jsonContent = null;
+            List<String> jsonContent = new ArrayList<>();
             try {
-                jsonContent = FileUtils.readFileToString(file, "utf-8");
-                //System.out.println(jsonContent);
+                jsonContent = FileUtils.readLines(file, "utf-8");
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            if (jsonContent == null) {
-                continue;
-            }
             try {
-                JSONArray MRArray = new JSONArray(jsonContent);
                 try(Transaction tx = this.getDb().beginTx()) {
-                    for (int i = 0; i < MRArray.length(); i++) {
-                        JSONObject MR = MRArray.getJSONObject(i).getJSONObject("_source");
+                    for (String s : jsonContent) {
+                        JSONObject mr = new JSONObject(s);
                         Node node = this.getDb().createNode();
                         // 建立MR实体
-                        createMRNode(MR, node);
+                        createMRNode(mr, node);
                         // 建立MR到DTS/AR的reference关系
-                        createMRRelationship(MR.getString("content"), node);
+                        createMRRelationship(mr.getString("content"), node);
                         // 建立MR到Person的链接关系
-                        createMR2PersonRelationship(node, MR.getString("author_id"), MRExtractor.AUTHOR);
-                        createMR2PersonRelationship(node, MR.getString("assignee_id"), MRExtractor.ASSIGNEE);
+                        createMR2PersonRelationship(node, mr.getString("author_id"), MRExtractor.AUTHOR);
+                        createMR2PersonRelationship(node, mr.getString("assignee_id"), MRExtractor.ASSIGNEE);
                     }
                     tx.success();
                 }
@@ -71,20 +70,23 @@ public class MRExtractor extends KnowledgeExtractor {
         }
     }
 
-    public void createMRNode(JSONObject MR, Node node) throws JSONException {
+    public void createMRNode(JSONObject mr, Node node) throws JSONException {
         node.addLabel(MRExtractor.MR);
-        node.setProperty(MRExtractor.ID, MR.getString("id"));
-        node.setProperty(MRExtractor.TITLE, MR.getString("title"));
-        node.setProperty(MRExtractor.CONTENT, MR.getString("content"));
-        node.setProperty(MRExtractor.URL, MR.getString("merge_request_url"));
-        //System.out.println("create MR Node: " + MR.getString("id"));
+        node.setProperty(MRExtractor.ID, mr.getString("id"));
+        node.setProperty(MRExtractor.TITLE, mr.getString("title"));
+        node.setProperty(MRExtractor.CONTENT, mr.getString("content"));
+        node.setProperty(MRExtractor.URL, mr.getString("merge_request_url"));
     }
 
     // 建立MR到DTS或AR的关联关系
     public void createMRRelationship(String content, Node mrNode) {
+
+        Set<String> ids = new HashSet<>();
         Matcher dtsMatcher = dtsPattern.matcher(content);
         while(dtsMatcher.find()){
-            String dts_no = content.substring(dtsMatcher.start(), dtsMatcher.end());
+            String dts_no = dtsMatcher.group();
+            if (ids.contains(dts_no))   continue;
+            ids.add(dts_no);
             //System.out.println(dts_no);
             Node dtsNode = this.getDb().findNode(DTSExtractor.DTS, DTSExtractor.DTS_NO, dts_no);
             if(dtsNode != null) {
@@ -95,7 +97,9 @@ public class MRExtractor extends KnowledgeExtractor {
 
         Matcher arMatcher = arPattern.matcher(content);
         while(arMatcher.find()){
-            String ar_no = content.substring(arMatcher.start(), arMatcher.end());
+            String ar_no = arMatcher.group();
+            if (ids.contains(ar_no))   continue;
+            ids.add(ar_no);
             Node arNode = this.getDb().findNode(RequirementExtractor.AR, RequirementExtractor.BUSINESS_NO, ar_no);
             if(arNode != null) {
                 mrNode.createRelationshipTo(arNode, MRExtractor.REFERENCE);

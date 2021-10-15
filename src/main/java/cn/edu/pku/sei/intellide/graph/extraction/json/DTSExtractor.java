@@ -9,6 +9,8 @@ import org.neo4j.graphdb.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class DTSExtractor extends KnowledgeExtractor {
 
@@ -25,27 +27,22 @@ public class DTSExtractor extends KnowledgeExtractor {
     @Override
     public void extraction() {
         for (File file : FileUtils.listFiles(new File(this.getDataDir()), new String[]{"json"}, true)) {
-            String jsonContent = null;
+            List<String> jsonContent = new ArrayList<>();
             try {
-                jsonContent = FileUtils.readFileToString(file, "utf-8");
-                //System.out.println(jsonContent);
+                jsonContent = FileUtils.readLines(file, "utf-8");
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            if (jsonContent == null){
-                continue;
-            }
             try {
-                JSONArray DTSArray = new JSONArray(jsonContent);
                 try(Transaction tx = this.getDb().beginTx()) {
-                    for (int i = 0; i < DTSArray.length(); i++) {
-                        JSONObject DTS = DTSArray.getJSONObject(i).getJSONObject("_source");
+                    for (String s : jsonContent) {
+                        JSONObject dts = new JSONObject(s);
                         Node node = this.getDb().createNode();
                         // 建立DTS实体
-                        createDTSNode(DTS, node);
+                        createDTSNode(dts, node);
                         // 建立DTS到Person的链接关系
-                        createDTS2PersonRelationship(node, DTS.getString("creator"), DTSExtractor.CREATOR);
-                        createDTS2PersonRelationship(node, DTS.getString("current_handler"), DTSExtractor.HANDLER);
+                        createDTS2PersonRelationship(node, dts.getString("creator"), DTSExtractor.CREATOR);
+                        createDTS2PersonRelationship(node, dts.getString("current_handler"), DTSExtractor.HANDLER);
                     }
                     tx.success();
                 }
@@ -55,10 +52,10 @@ public class DTSExtractor extends KnowledgeExtractor {
         }
     }
 
-    public void createDTSNode(JSONObject DTS, Node node) throws JSONException {
+    public void createDTSNode(JSONObject dts, Node node) throws JSONException {
         node.addLabel(DTSExtractor.DTS);
-        node.setProperty(DTSExtractor.DTS_NO, DTS.getString("dts_no"));
-        node.setProperty(DTSExtractor.BRIEF_DESC, DTS.getString("brief_desc"));
+        node.setProperty(DTSExtractor.DTS_NO, dts.getString("dts_no"));
+        node.setProperty(DTSExtractor.BRIEF_DESC, dts.getString("brief_desc"));
     }
 
 

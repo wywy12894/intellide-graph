@@ -22,9 +22,9 @@ public class DocSectionInfo {
     public Set<Node> setSR;
     public Set<Node> setAR;
 
-    private static String IRRegex = "IR\\.[A-Za-z0-9\\.]+";
-    private static String SRRegex = "SR\\.[A-Za-z0-9\\.]+";
-    private static String ARRegex = "AR\\.[A-Za-z0-9\\.]+";
+    private static String IRRegex = "[^\\.](IR\\.[A-Za-z0-9\\.]+)";
+    private static String SRRegex = "[^\\.](SR\\.[A-Za-z0-9\\.]+)";
+    private static String ARRegex = "[^\\.](AR\\.[A-Za-z0-9\\.]+)";
 
     private static Pattern irPattern;
     private static Pattern srPattern;
@@ -78,30 +78,27 @@ public class DocSectionInfo {
 
             Matcher irMatcher = irPattern.matcher(content);
             while (irMatcher.find()) {
-                String ir_no = content.substring(irMatcher.start(), irMatcher.end());
+                String ir_no = irMatcher.group(1);
                 Node ir = db.findNode(RequirementExtractor.IR, RequirementExtractor.BUSINESS_NO, ir_no);
                 if (ir != null) {
-                    //System.out.println("cp3 regex: " + ir.getProperty("business_no"));
                     setIR.add(ir);
                 }
             }
 
             Matcher srMatcher = srPattern.matcher(content);
             while (srMatcher.find()) {
-                String sr_no = content.substring(srMatcher.start(), srMatcher.end());
+                String sr_no = srMatcher.group(1);
                 Node sr = db.findNode(RequirementExtractor.SR, RequirementExtractor.BUSINESS_NO, sr_no);
                 if (sr != null) {
-                    //System.out.println("cp3 regex: " + sr.getProperty("business_no"));
                     setSR.add(sr);
                 }
             }
 
             Matcher arMatcher = arPattern.matcher(content);
             while (arMatcher.find()) {
-                String ar_no = content.substring(arMatcher.start(), arMatcher.end());
+                String ar_no = arMatcher.group(1);
                 Node ar = db.findNode(RequirementExtractor.AR, RequirementExtractor.BUSINESS_NO, ar_no);
                 if (ar != null) {
-                    //System.out.println("cp3 regex: " + ar.getProperty("business_no"));
                     setAR.add(ar);
                 }
             }
@@ -119,17 +116,14 @@ public class DocSectionInfo {
                 Node reqNode;
                 reqNode = db.findNode(RequirementExtractor.IR, RequirementExtractor.NAME, query);
                 if (reqNode != null){
-                    //System.out.println("cp4 name: " + query + " " + reqNode.getProperty("business_no"));
                     setIR.add(reqNode);
                 }
                 reqNode = db.findNode(RequirementExtractor.SR, RequirementExtractor.NAME, query);
                 if (reqNode != null) {
-                    //System.out.println("cp4 name: " + query + " " + reqNode.getProperty("business_no"));
                     setSR.add(reqNode);
                 }
                 reqNode = db.findNode(RequirementExtractor.AR, RequirementExtractor.NAME, query);
                 if (reqNode != null) {
-                    //System.out.println("cp4 name: " + query + " " + reqNode.getProperty("business_no"));
                     setAR.add(reqNode);
                 }
             }
@@ -186,13 +180,10 @@ public class DocSectionInfo {
 
     public void addRelationship(GraphDatabaseService db, int n) {
         Set<Node> targetNodes;
-        Set<Node> sourceNodes;
         if (n == 2) {
-            sourceNodes = setIR;
             targetNodes = setSR;
         }
         else if (n == 3) {
-            sourceNodes = setSR;
             targetNodes = setAR;
         }
         else {
