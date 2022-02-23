@@ -348,6 +348,10 @@
     "description": "Apache Juneau™ is a single cohesive Java ecosystem consisting of the following parts:\n\njuneau-marshall - A universal toolkit for marshalling POJOs to a wide variety of content types using a common framework with no external library dependencies.\njuneau-dto - A variety of predefined DTOs for serializing and parsing languages such as HTML5, Swagger and ATOM.\njuneau-svl - A simple yet powerful variable replacement language API.\njuneau-config - A sophisticated configuration file API.\njuneau-rest-server - A universal REST server API for creating Swagger-based self-documenting REST interfaces using POJOs, simply deployed as one or more top-level servlets in any Servlet 3.1.0+ container.\njuneau-rest-client - A universal REST client API for interacting with Juneau or 3rd-party REST interfaces using POJOs and proxy interfaces.\njuneau-microservice - A REST microservice API that combines all the features above with a simple configurable Jetty server for creating lightweight standalone REST interfaces that start up in milliseconds.\nQuestions via email to dev@juneau.apache.org are always welcome.\n\nJuneau is packed with features that may not be obvious at first. \nUsers are encouraged to ask for code reviews by providing links to specific source files such as through GitHub. \nNot only can we help you with feedback, but it helps us understand usage patterns to further improve the product."
   },
   {
+    "name": "kenel_liteos_a",
+    "description": "LiteOS kernel for embedded devices with rich resources, which is a component of OpenHarmony."
+  },
+  {
     "name": "Kafka",
     "description": "Apache Kafka is an open-source stream-processing software platform developed by the Apache Software Foundation, written in Scala and Java. The project aims to provide a unified, high-throughput, low-latency platform for handling real-time data feeds."
   },
